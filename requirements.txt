@@ -1,0 +1,6 @@
+langgraph 
+langchain 
+python-dotenv
+langchain-community
+langchain-core
+langgraph-supervisor 
