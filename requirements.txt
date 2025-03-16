@@ -3,4 +3,5 @@ langchain
 python-dotenv
 langchain-community
 langchain-core
+langsmith
 langgraph-supervisor 
