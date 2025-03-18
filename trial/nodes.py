@@ -8,7 +8,7 @@ from langgraph.store.memory import InMemoryStore
 
 checkpointer = InMemorySaver()
 store = InMemoryStore()
-from helpers import extract_name
+from rag_helpers import extract_name
 
 class State(TypedDict):
     messages: Annotated[list, add_messages]

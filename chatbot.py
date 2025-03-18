@@ -1,5 +1,4 @@
 from typing import Annotated
-from langchain_ollama import ChatOllama
 from typing_extensions import TypedDict
 from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
@@ -8,14 +7,16 @@ from langgraph.store.memory import InMemoryStore
 import uuid
 from dotenv import load_dotenv
 from langsmith.run_trees import RunTree
+from rag_query import fetch_relevant_answer
 
 load_dotenv() 
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
 class ChatBot:
-    def __init__(self):
-        self.llm = ChatOllama(model="llama3.1")
+    def __init__(self, llm, vector_store):
+        self.llm = llm
+        self.vector_store = vector_store
         self.checkpointer = InMemorySaver()
         self.store = InMemoryStore()
         
@@ -31,10 +32,12 @@ class ChatBot:
 
     def _build_graph(self):
         self.graph_builder.add_node("analyze_message", self.analyze_message)
+        self.graph_builder.add_node("use_rag", self.use_rag)
         self.graph_builder.add_node("chatbot", self.chatbot)
         self.graph_builder.add_node("generate_final_response", self.generate_final_response)
 
         self.graph_builder.add_edge(START, "analyze_message")
+        self.graph_builder.add_edge("analyze_message", "use_rag")
         self.graph_builder.add_edge("analyze_message", "chatbot")
         self.graph_builder.add_edge("chatbot", "generate_final_response")
         self.graph_builder.add_edge("generate_final_response", END)
@@ -55,6 +58,25 @@ class ChatBot:
         ).post()
 
         state["messages"][-1] = new_message
+        return state 
+    
+    def use_rag(self, state: State):
+        user_input = state["messages"][-1].content
+        relevant_docs = fetch_relevant_answer(user_input, self.vector_store)
+        if relevant_docs:
+            augmented_message = f"Based on the information from the knowledge base, here's what I found: {relevant_docs}"
+        else:
+            augmented_message = "I couldn't find relevant information, but let me answer your question directly."
+
+        new_message = {"role": "assistant", "content": augmented_message}
+        state["messages"].append(new_message)
+
+        self.pipeline.create_child(
+            name="Rag Call",
+            run_type="llm", 
+            inputs={"messages": state["messages"]}
+        ).post()
+
         return state 
 
     def chatbot(self, state: State):
