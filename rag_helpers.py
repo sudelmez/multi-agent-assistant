@@ -6,6 +6,7 @@ import httpx
 from bs4 import BeautifulSoup
 from langchain_core.documents import Document
 import fitz
+import os
 
 class RagItemHelpers:
     def __init__(self, vector_store, embeddings):
@@ -77,9 +78,18 @@ class RagItemHelpers:
 
     async def upload_pdfs_to_chroma(self, pdf_files):
         print("Uploading PDF documents to Chroma...")
+
         for pdf_file in pdf_files:
-            if not self.vector_store.get_documents({"source": pdf_file}):
+            if not os.path.exists(pdf_file):
+                print(f"File {pdf_file} not found, skipping.")
+                continue
+
+            try:
                 text = self.read_pdf(pdf_file)
+
+                if not text.strip():
+                    print(f"No text found in {pdf_file}, skipping.")
+                    continue
 
                 document = Document(
                     page_content=text,
@@ -91,13 +101,32 @@ class RagItemHelpers:
                     ids=[str(uuid4())],
                 )
                 print(f"Uploaded PDF document {pdf_file}")
-            else:
-                print(f"PDF document {pdf_file} already exists in the database.")
+            except Exception as e:
+                print(f"Failed to upload {pdf_file}: {e}")
+
+    # async def upload_pdfs_to_chroma(self, pdf_files):
+    #     print("Uploading PDF documents to Chroma...")
+    #     for pdf_file in pdf_files:
+    #         if not self.vector_store.get_documents({"source": pdf_file}):
+    #             text = self.read_pdf(pdf_file)
+
+    #             document = Document(
+    #                 page_content=text,
+    #                 metadata={"source": pdf_file}
+    #             )
+
+    #             self.vector_store.add_documents(
+    #                 documents=[document],
+    #                 ids=[str(uuid4())],
+    #             )
+    #             print(f"Uploaded PDF document {pdf_file}")
+    #         else:
+    #             print(f"PDF document {pdf_file} already exists in the database.")
 
     async def upload_rag_items(self):
         try:
             await asyncio.gather(
-                self.upload_web_content_to_chroma(urls=self.urls),
+                # self.upload_web_content_to_chroma(urls=self.urls),
                 self.upload_pdfs_to_chroma(self.pdf_files)
             )
             print("Web content and PDF content uploaded successfully.")

@@ -4,12 +4,14 @@ from langgraph.graph import StateGraph, START, END
 from langgraph.graph.message import add_messages
 from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
-import uuid
 from dotenv import load_dotenv
 from langsmith.run_trees import RunTree
-from rag_query import fetch_relevant_answer
+from together import Together
+from deepseek import get_deepseek_answer
+from llama3 import get_llama_answer
 
 load_dotenv() 
+client = Together()
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
@@ -33,13 +35,18 @@ class ChatBot:
     def _build_graph(self):
         self.graph_builder.add_node("analyze_message", self.analyze_message)
         self.graph_builder.add_node("use_rag", self.use_rag)
-        self.graph_builder.add_node("chatbot", self.chatbot)
+        self.graph_builder.add_node("ask_llama", self.ask_llama)
+        self.graph_builder.add_node("ask_deepseek", self.ask_deepseek)
+        self.graph_builder.add_node("ai_process", self.ai_process)
         self.graph_builder.add_node("generate_final_response", self.generate_final_response)
 
         self.graph_builder.add_edge(START, "analyze_message")
         self.graph_builder.add_edge("analyze_message", "use_rag")
-        self.graph_builder.add_edge("analyze_message", "chatbot")
-        self.graph_builder.add_edge("chatbot", "generate_final_response")
+        self.graph_builder.add_edge("use_rag", "ai_process")
+        self.graph_builder.add_edge("ai_process", "generate_final_response")
+        # self.graph_builder.add_edge("use_rag", "ask_deepseek")
+        # self.graph_builder.add_edge("ask_deepseek", "ask_llama")
+        # self.graph_builder.add_edge("ask_llama", "generate_final_response")
         self.graph_builder.add_edge("generate_final_response", END)
 
         self.graph = self.graph_builder.compile(checkpointer=self.checkpointer, store=self.store)
@@ -61,15 +68,27 @@ class ChatBot:
         return state 
     
     def use_rag(self, state: State):
-        user_input = state["messages"][-1].content
-        relevant_docs = fetch_relevant_answer(user_input, self.vector_store)
-        if relevant_docs:
-            augmented_message = f"Based on the information from the knowledge base, here's what I found: {relevant_docs}"
-        else:
-            augmented_message = "I couldn't find relevant information, but let me answer your question directly."
+        print("\n---\nrag state stopped...")
+        # user_input = state["messages"][-1].content
 
-        new_message = {"role": "assistant", "content": augmented_message}
-        state["messages"].append(new_message)
+        # relevant_docs = self.vector_store.similarity_search_with_score(user_input, k=1)
+
+        # if relevant_docs:
+        #     context = "\n".join([doc.page_content for doc, _ in relevant_docs])
+        #     system_message = {"role": "system", "content": f"Use the following context to answer:\n{context}"}
+        # else:
+        # system_message = {
+        #             "role": "system",
+        #             "content": f"{question}"
+        #         }
+        # state["messages"].append(system_message)
+
+        question = self.pipeline.inputs["question"]
+        system_message = {
+            "role": "system",
+            "content": f"{question}"
+        }
+        state["messages"].append(system_message)
 
         self.pipeline.create_child(
             name="Rag Call",
@@ -77,11 +96,54 @@ class ChatBot:
             inputs={"messages": state["messages"]}
         ).post()
 
-        return state 
+        return state
 
-    def chatbot(self, state: State):
-        response = self.llm.invoke(state["messages"])
+    def ai_process(self, state: State):
+        last_message = state["messages"][-1]
+        user_input = last_message["content"] if isinstance(last_message, dict) else last_message.content
+
+        deepseek_response = get_llama_answer(user_input, self.llm)
+        llama_response = get_llama_answer(user_input, self.llm)
+
+        deepseek_message = {"role": "assistant", "content": deepseek_response}
+        llama_message = {"role": "assistant", "content": str(llama_response)}
+
+        combined_content = f"İki LLM modelinin verdiği cevaplar:\n\nDeepSeek: {deepseek_message}\n\nLLaMA: {llama_message}"
+        state["messages"].append({"role": "assistant", "content": combined_content})
+
+        print("\n\n-----------\nCombined Content\n", combined_content, "---------")
+
+        self.pipeline.create_child(
+            name="Ai Process Call",
+            run_type="llm",
+            inputs={"messages": state["messages"]}
+        ).post()
+
+        return state
+
+    def ask_deepseek(self, state: State):
+        last_message = state["messages"][-1]
+        user_input = last_message["content"] if isinstance(last_message, dict) else last_message.content
+        deepseek_response = get_deepseek_answer(user_input)
+        deepseek_message = {"role": "assistant", "content": deepseek_response}
+
+        state["messages"].append(deepseek_message)
+
+        self.pipeline.create_child(
+            name="Deepseek Call",
+            run_type="llm", 
+            inputs={"messages": state["messages"]}
+        ).post()
+
+        return state
+    
+    def ask_llama(self, state: State):
+        last_message = state["messages"][-1]
+        user_input = last_message["content"] if isinstance(last_message, dict) else last_message.content
+        response = get_llama_answer(user_input, self.llm)
+
         chatbot_message = {"role": "assistant", "content": str(response)} 
+
         state["messages"][-1] = chatbot_message
 
         self.pipeline.create_child(
@@ -105,6 +167,7 @@ class ChatBot:
 
         return state  
 
+
     def stream_graph_updates(self, user_input: str):
         state = {"messages": [{"role": "user", "content": user_input}]}
         config = {"configurable": {"thread_id": "1"}}
@@ -115,9 +178,9 @@ class ChatBot:
         for event in self.graph.stream(state, config):
             for value in event.values():
                 if value is not None:
-                    print("Assistant:", value["messages"][-1]["content"])
+                    print("\n---\nAssistant:", value["messages"][-1]["content"])
                 else:
-                    print("Error: Received None, skipping...")
+                    print("\n---\nError: Received None, skipping...")
         
         self.pipeline.end(outputs={"answer": state["messages"][-1]["content"]})
         self.pipeline.patch()
