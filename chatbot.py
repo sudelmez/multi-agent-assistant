@@ -6,12 +6,10 @@ from langgraph.checkpoint.memory import InMemorySaver
 from langgraph.store.memory import InMemoryStore
 from dotenv import load_dotenv
 from langsmith.run_trees import RunTree
-from together import Together
 from deepseek import get_deepseek_answer
 from llama3 import get_llama_answer
 
 load_dotenv() 
-client = Together()
 class State(TypedDict):
     messages: Annotated[list, add_messages]
 
