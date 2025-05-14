@@ -1,0 +1,13 @@
+todos.txt
+venv/
+__pycache__/
+*.pt
+*.bin
+*.ckpt
+*.safetensors
+*.pkl
+*.log
+*.csv
+*.jpg
+*.png
+.env

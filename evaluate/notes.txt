@@ -1,0 +1,6 @@
+https://huggingface.co/docs/evaluate/a_quick_tour
+
+PLANLANAN:
+ai cevabını actual input olarak, beklenen cevabı da dataset üzerinden gönderip bunların oranlarını buradan ölçebiliriz.
+
+https://smith.langchain.com/o/3b29b56e-3c95-4f52-b373-59072afe6d7a/
