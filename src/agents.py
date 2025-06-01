@@ -5,6 +5,7 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
+# NOT COMPLETED
 @traceable()
 def analyze_message(state: State):
     user_message = get_message_content(state["messages"][-1])
@@ -31,6 +32,7 @@ def use_llama(state: State, config: dict):
     state["process"]["llama_result"] = llama_result
     return state
 
+# NOT COMPLETED
 @traceable()
 def evaluate_with_langsmith(state: State):
     answers = {

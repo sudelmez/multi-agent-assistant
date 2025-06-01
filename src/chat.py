@@ -25,14 +25,15 @@ class SmartChatBot:
         self.graph_builder = StateGraph(State)
         self._build_graph()
 
-    def run_chat_session(self, user_input: str) -> str:
+    def run_chat_session(self, user_input: str, conv_id: str = "chat-001") -> str:
         state = {
             "messages": [{"role": "user", "content": user_input}]
         }
         config = {"configurable": {
-            "thread_id": "chat-001", 
+            "thread_id": conv_id, 
             "llama_llm": self.llm_llama,
-            "retriever": self.retriever}}
+            "retriever": self.retriever
+            }}
 
         self.pipeline.inputs["question"] = user_input
         self.pipeline.patch()

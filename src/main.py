@@ -47,6 +47,7 @@ chatbot = SmartChatBot(llm_llama=llm_llama, retriever=retriever)
 
 class ChatRequest(BaseModel):
     message: str
+    conversationId: str
 
 class ChatResponse(BaseModel):
     response: str
@@ -57,7 +58,7 @@ async def chat_endpoint(request: ChatRequest):
         logger.warning("❌ Chatbot henüz başlatılamadı.")
         return ChatResponse(response="Chatbot şu anda kullanılamıyor.")
     logger.info(f"📨 Kullanıcı mesajı alındı: {request.message}")
-    response = chatbot.run_chat_session(request.message)
+    response = chatbot.run_chat_session(request.message, request.conversationId)
     logger.info(f"💬 Bot yanıtı: {response}")
     return ChatResponse(response=response)
 
