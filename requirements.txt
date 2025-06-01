@@ -15,3 +15,5 @@ bitsandbytes
 accelerate
 tiktoken
 beautifulsoup4
+fastapi
+uvicorn

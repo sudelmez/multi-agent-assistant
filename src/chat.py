@@ -1,8 +1,8 @@
 from langgraph.graph import StateGraph, START, END
 from langgraph.checkpoint.memory import MemorySaver
 from langgraph.store.memory import InMemoryStore
-from utils import State
-from agents import (
+from src.utils import State
+from src.agents import (
     analyze_message,
     use_rag,
     evaluate_with_langsmith,
@@ -24,6 +24,37 @@ class SmartChatBot:
         self.pipeline.post()
         self.graph_builder = StateGraph(State)
         self._build_graph()
+
+    def run_chat_session(self, user_input: str) -> str:
+        state = {
+            "messages": [{"role": "user", "content": user_input}]
+        }
+        config = {"configurable": {
+            "thread_id": "chat-001", 
+            "llama_llm": self.llm_llama,
+            "retriever": self.retriever}}
+
+        self.pipeline.inputs["question"] = user_input
+        self.pipeline.patch()
+
+        final_message = ""
+
+        for event in self.graph.stream(state, config):
+            for value in event.values():
+                if value is not None:
+                    try:
+                        last_msg = value["messages"][-1]
+                        if isinstance(last_msg, BaseMessage):
+                            final_message = last_msg.content
+                        else:
+                            final_message = last_msg["content"]
+                    except Exception as e:
+                        final_message = f"⚠️ Error: {str(e)}"
+        
+        self.pipeline.end(outputs={"answer": final_message})
+        self.pipeline.patch()
+
+        return final_message
 
     def _build_graph(self):
         self.graph_builder.add_node("analyze_message", analyze_message)
