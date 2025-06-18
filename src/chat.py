@@ -29,10 +29,11 @@ class SmartChatBot:
         state = {
             "messages": [{"role": "user", "content": user_input}]
         }
+        retriever = self.retriever 
         config = {"configurable": {
             "thread_id": conv_id, 
             "llama_llm": self.llm_llama,
-            "retriever": self.retriever
+            "retriever": retriever
             }}
 
         self.pipeline.inputs["question"] = user_input

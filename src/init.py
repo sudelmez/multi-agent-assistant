@@ -42,7 +42,10 @@ def init_rag():
         "https://ada.com/editorial/how-to-lower-cholesterol/",
         "https://ada.com/editorial/5-healthy-habits-for-2024/",
         "https://ada.com/editorial/what-does-my-headache-mean/",
-        "https://ada.com/editorial/how-to-care-for-skin-with-psoriasis/"
+        "https://ada.com/editorial/how-to-care-for-skin-with-psoriasis/",
+        "https://ada.com/conditions/diabetes/",
+        "https://ada.com/biomarkers/hgb-blood-test/",
+        "https://ada.com/conditions/anemia/"
     ]
     docs = [WebBaseLoader(url).load() for url in urls]
     docs_list = [item for sublist in docs for item in sublist]
@@ -51,7 +54,6 @@ def init_rag():
         chunk_size=250, chunk_overlap=0
     )
     doc_splits = text_splitter.split_documents(docs_list)
-
     embeddings = OllamaEmbeddings(model="llama3.1")
     vectorstore = InMemoryVectorStore.from_documents(
         documents=doc_splits,

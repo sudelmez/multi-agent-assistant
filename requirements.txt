@@ -17,3 +17,5 @@ tiktoken
 beautifulsoup4
 fastapi
 uvicorn
+pytesseract 
+PyPDF2

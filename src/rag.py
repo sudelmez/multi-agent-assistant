@@ -6,31 +6,52 @@ load_dotenv()
 @traceable()
 def rag_bot(question: str, llm, retriever) -> dict:
     docs = retriever.invoke(question)
-    docs_string = "\n\n".join(doc.page_content for doc in docs)
+
+    user_docs = [doc for doc in docs if doc.metadata.get("source") == "user_data"]
+    general_docs = [doc for doc in docs if doc.metadata.get("source") != "user_data"]
+
+    general_docs_string = "\n\n".join(doc.page_content for doc in general_docs)
+    user_docs_string = "\n\n".join(doc.page_content for doc in user_docs)
+        
+    full_context = f"""
+        === GENERAL MEDICAL DOCUMENTS ===
+
+        {general_docs_string}
+
+        === USER-SPECIFIC MEDICAL DATA ===
+
+        {user_docs_string}
+
+        """
 
     instructions = f"""
-    You are a highly specialized medical AI assistant trained to provide diagnostic insights and guidance based solely on the following medical documents:
+        You are a highly specialized medical AI assistant trained to provide diagnostic insights and guidance using two sources:
 
-    {docs_string}
+        1. A trusted, high-quality medical knowledge base.
+        2. Personal medical data specific to the user.
 
-    ---
+        **How to reason:**
+        - Read the user's question carefully.
+        - Use only the information provided in the knowledge base to formulate your response. Do not rely on any external knowledge or assumptions.
+        - Use both the general documents and the user's personal data to answer the question. Do not rely on any external knowledge or assumptions.
+        - Prioritize personal data when available — assume it reflects the user's current medical condition.
+        - Do NOT guess. If there is not enough data to make a reasonable statement, clearly say so.
+        - Be medically responsible, empathetic, and clear.
 
-    **Instructions:**
+        Example closing:  
+        "This assessment is based on your uploaded medical data and trusted documents. Likelihood of condition: [X]%."
 
-    - Read the user's question carefully.
-    - Use only the information provided in the knowledge base to formulate your response. Do not rely on any external knowledge or assumptions.
-    - Respond in a natural, human-like tone — similar to how an experienced medical professional would explain their thoughts.
-    - If the question is unrelated to the provided content, say: "Diagnosis is not possible because it is out of scope."
-    - If the available information is insufficient to form a reasonable answer, say: "Insufficient data!"
-    - If enough relevant information is found, provide a thoughtful explanation, including diagnostic considerations or next steps (e.g., consult a specialist, run further tests).
-    - At the end of your response, add a short note like:
-    "This assessment is based on the current medical data available in the provided documents. The likelihood of the suspected condition is [X]%."
+        **Important Notes:**
+        - The confidence score should reflect how strongly the evidence in the documents supports your answer. Give it as a float between 0.0 and 1.0, and present it as a percentage.
+        - The user should understand clearly that the information comes from document-based analysis, not from general knowledge or guesswork.
+        - Keep the explanation clear, empathetic, and medically responsible.
 
-    **Important Notes:**
-    - The confidence score should reflect how strongly the evidence in the documents supports your answer. Give it as a float between 0.0 and 1.0, and present it as a percentage.
-    - The user should understand clearly that the information comes from document-based analysis, not from general knowledge or guesswork.
-    - Keep the explanation clear, empathetic, and medically responsible.
-    """
+        **Question:**
+        {question}
+
+        **Context:**
+        {full_context}
+        """
 
     ai_msg = llm.invoke([
         {"role": "system", "content": instructions},
