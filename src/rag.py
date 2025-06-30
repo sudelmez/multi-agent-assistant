@@ -7,7 +7,7 @@ load_dotenv()
 def rag_bot(question: str, llm, retriever) -> dict:
     docs = retriever.invoke(question)
 
-    user_docs = [doc for doc in docs if doc.metadata.get("source") == "user_data"]
+    user_docs = [doc for doc in docs if doc.metadata.get("source") == "user_data" and doc.metadata.get("user_id") == "1"]
     general_docs = [doc for doc in docs if doc.metadata.get("source") != "user_data"]
 
     general_docs_string = "\n\n".join(doc.page_content for doc in general_docs)

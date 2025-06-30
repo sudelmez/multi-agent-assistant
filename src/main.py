@@ -70,7 +70,7 @@ class UserDocRequest(BaseModel):
 class UserDocResponse(BaseModel):
     success: bool
     message: str
-
+user_vectorstores = {} 
 user_vectorstore = None
 
 def decode_base64_file(base64_str: str) -> bytes:
@@ -128,7 +128,7 @@ async def upload_user_data(request: UserDocRequest):
         embeddings = OllamaEmbeddings(model="llama3.1")
         global user_vectorstore
         user_vectorstore = InMemoryVectorStore.from_documents(doc_chunks, embedding=embeddings)
-
+        user_vectorstores[request.user_id] = user_vectorstore
         logger.info(f"✅ {request.user_id} için belgeler başarıyla vektör veritabanına yüklendi.")
         return UserDocResponse(success=True, message="Dosyalar başarıyla yüklendi.")
 
@@ -139,12 +139,23 @@ async def upload_user_data(request: UserDocRequest):
     
 @app.post("/chat", response_model=ChatResponse)
 async def chat_endpoint(request: ChatRequest):
+    user_id = "1"
+    user_retriever = user_vectorstores.get(user_id)
     if chatbot is None:
         logger.warning("❌ Chatbot henüz başlatılamadı.")
         return ChatResponse(response="Chatbot şu anda kullanılamıyor.")
-    logger.info(f"📨 Kullanıcı mesajı alındı: {request.message}")
+    
+    from langchain.retrievers import EnsembleRetriever
 
-    response = chatbot.run_chat_session(request.message, request.conversationId )
+    combined_retriever = EnsembleRetriever(
+        retrievers=[retriever, user_retriever.as_retriever()],
+        weights=[0.5, 1.0]  
+    )
+
+    logger.info(f"📨 Kullanıcı mesajı alındı: {request.message}")
+    session_bot = SmartChatBot(llm_llama=llm_llama, retriever=combined_retriever)
+    response = session_bot.run_chat_session(request.message, request.conversationId)
+
     logger.info(f"💬 Bot yanıtı: {response}")
     return ChatResponse(response=response)
 
